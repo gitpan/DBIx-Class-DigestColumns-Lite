@@ -4,43 +4,31 @@ use warnings;
 use base 'DBIx::Class';
 use Digest::SHA1 ();
 
-our $VERSION = 0.02;
+our $VERSION = 0.03;
 
-sub digest_key {
-    my ($self ,$val) = @_;
-
-    return $self->_schema_digest_key unless $val;
-
-    # make schema's class data.
-    $self->mk_classdata( _schema_digest_key => '');
-    return $self->_schema_digest_key($val);
-}
-
-sub digest_columns {
-    my ($self, @columns) = @_;
-
-    if (@columns) {
-        for (@columns) {
-            $self->throw_exception("column $_ doesn't exist")
-                unless $self->has_column($_);
-        }
-        # make schema's class data.
-        $self->mk_classdata( _schema_force_digest_columns => [] );
-        $self->_schema_force_digest_columns(\@columns);
-    }
-
-    return $self->_schema_force_digest_columns;
-}
+__PACKAGE__->mk_classdata( force_digest_columns => [] );
+__PACKAGE__->mk_classdata( digest_key => '');
 
 sub digest {
     my ($self ,$val) = @_;
     return Digest::SHA1::sha1_hex(($val || '') . ($self->digest_key || ''));
 }
 
+sub digest_columns {
+    my $self = shift;
+
+    for (@_) {
+        $self->throw_exception("column $_ doesn't exist")
+            unless $self->has_column($_);
+    }
+
+    $self->force_digest_columns( \@_ );
+}
+
 sub store_column {
     my ( $self, $column, $value ) = @_;
 
-    if ( { map { $_ => 1 } @{ $self->digest_columns || [] } }->{$column} ) {
+    if ( { map { $_ => 1 } @{ $self->force_digest_columns } }->{$column} ) {
         $value = $self->digest($value);
     }
 
@@ -69,10 +57,6 @@ you can easy to use Digest Value.
 This module use Digest::SHA1.
 
 =head1 METHOD
-
-=head2 digest_key
-
-set digest key
 
 =head2 digest_columns
 
